@@ -2,14 +2,14 @@
 
 import Text.Digestive.Forms.Yesod
 import Control.Applicative
-import Yesod hiding (Html, renderHtml)
+import Yesod hiding (Html, renderHtml, runFormPost)
 import Text.Digestive
-import Text.Digestive.Blaze.Html5 (BlazeFormHtml, inputText, inputFile, renderFormHtml, FormHtml)
+import Text.Digestive.Blaze.Html5
+import Text.Blaze.Html5 (Html)
 import qualified Data.ByteString.Lazy as LB
 import Data.Maybe
 import Network.Wai.Handler.SimpleServer
 import qualified Text.Hamlet as H
-
 
 data Test = Test
 
@@ -25,13 +25,19 @@ instance Yesod Test where
 data Upload = Upload LB.ByteString String
   deriving (Show)
 
-uploadForm :: YesodForm Handler BlazeFormHtml BlazeFormHtml Upload
+resultView :: View e v -> Result e ok -> v
+resultView v = unView v . resultErrors
+
+resultErrors (Error e) = e
+resultErrors _ = []
+
+uploadForm :: YesodForm Handler Html BlazeFormHtml Upload
 uploadForm = Upload
   <$> fmap (fromMaybe "Unknown" . fmap snd) inputFile 
-  <*> inputText Nothing
+  <*> (<++ errors) (inputTextRead "Required" Nothing) 
 
-myRenderForm :: BlazeFormHtml -> GWidget Test Test ()
-myRenderForm form = 
+uploadFormWidget :: BlazeFormHtml -> GWidget Test Test ()
+uploadFormWidget form = 
   addHamlet [$hamlet|
     %form!method=post!enctype=multipart/form-data
       $formHtml$
@@ -42,15 +48,16 @@ myRenderForm form =
 getUploadR :: Handler RepHtml
 getUploadR = do
   form <- viewForm uploadForm "upload"
-  defaultLayout $ myRenderForm form
+  defaultLayout $ uploadFormWidget form
   
 postUploadR :: Handler RepHtml
 postUploadR = do
-  result <- eitherYesodForm uploadForm "upload"
-  defaultLayout $
-    case result of
-         Left v -> myRenderForm v
-         Right u -> addHtml $ H.toHtml $ show u
+  (view, res) <- runFormPost uploadForm "upload"
+  defaultLayout $ do
+    case res of
+         Error _ -> return ()
+         Ok up    -> addHtml . H.toHtml $ show up
+    uploadFormWidget $ resultView view res
 
 main = basicHandler 3000 Test 
 
