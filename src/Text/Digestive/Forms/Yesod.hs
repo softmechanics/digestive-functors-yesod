@@ -10,6 +10,7 @@ module Text.Digestive.Forms.Yesod
 
 import Control.Monad (liftM)
 import "transformers" Control.Monad.IO.Class (MonadIO, liftIO)
+import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as LB
 import Text.Digestive.Forms (FormInput (..))
 import Text.Digestive.Types (Form (..), View (..), Environment (..), viewForm, runForm, eitherForm)
@@ -17,7 +18,7 @@ import Text.Digestive.Result (Result (..))
 import Yesod.Request
 import Network.Wai (requestMethod)
 import qualified Text.Hamlet as H
-import Text.Blaze.Renderer.String (renderHtml)
+import Text.Blaze.Renderer.Utf8 (renderHtml)
 import Text.Digestive.Blaze.Html5 (BlazeFormHtml, renderFormHtml)
 
 -- | Form input type.  String is for most types, lazy ByteString for file uploads
@@ -32,7 +33,7 @@ instance FormInput Input (String, LB.ByteString) where
 type YesodForm m e v a = Form m Input e v a
 
 instance H.ToHtml BlazeFormHtml where
-  toHtml = H.preEscapedString . renderHtml . fst . renderFormHtml
+  toHtml = H.unsafeByteString . B.concat . LB.toChunks . renderHtml . fst . renderFormHtml
 
 -- | Environment that will fetch input from the parameters parsed by Yesod
 --
